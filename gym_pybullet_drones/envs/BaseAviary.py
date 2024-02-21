@@ -14,6 +14,8 @@ import pybullet_data
 import gymnasium as gym
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
 
+DEFAULT_VIDEO_RECORD = False
+
 
 class BaseAviary(gym.Env):
     """Base class for "drone aviary" Gym environments."""
@@ -132,7 +134,7 @@ class BaseAviary(gym.Env):
             os.makedirs(os.path.dirname(self.ONBOARD_IMG_PATH), exist_ok=True)
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
-            self.IMG_RES = np.array([64, 48])
+            self.IMG_RES = np.array([120, 90])   # default 64x48
             self.IMG_FRAME_PER_SEC = 24
             self.IMG_CAPTURE_FREQ = int(self.PYB_FREQ/self.IMG_FRAME_PER_SEC)
             self.rgb = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0], 4)))
@@ -520,23 +522,36 @@ class BaseAviary(gym.Env):
     
     ################################################################################
 
-    def _startVideoRecording(self):
+    def _startVideoRecording(self, path:str=None):
         """Starts the recording of a video output.
 
         The format of the video output is .mp4, if GUI is True, or .png, otherwise.
 
         """
+
+        if hasattr(self, 'ONBOARD_IMG_PATH'):
+            path = os.path.join(self.ONBOARD_IMG_PATH, "video_" + datetime.now().strftime("%d-%H.%M.%S")) if path is None else path
+        else:
+            path = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S")) if path is None else path
+        
         if self.RECORD and self.GUI:
-            VIDEO_FOLDER = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
-            os.makedirs(os.path.dirname(VIDEO_FOLDER), exist_ok=True)
+            if DEFAULT_VIDEO_RECORD == False:
+                # video recording has some bugs, so deprecate temporarily
+                return
+
+            # VIDEO_FOLDER = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
+            VIDEO_FOLDER = path
+            os.makedirs(VIDEO_FOLDER, exist_ok=True)
+
             self.VIDEO_ID = p.startStateLogging(loggingType=p.STATE_LOGGING_VIDEO_MP4,
                                                 fileName=os.path.join(VIDEO_FOLDER, "output.mp4"),
                                                 physicsClientId=self.CLIENT
                                                 )
         if self.RECORD and not self.GUI:
             self.FRAME_NUM = 0
-            self.IMG_PATH = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"), '')
-            os.makedirs(os.path.dirname(self.IMG_PATH), exist_ok=True)
+            # self.IMG_PATH = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"), '')
+            self.IMG_PATH = os.path.join(path, '')
+            os.makedirs(self.IMG_PATH, exist_ok=True)
     
     ################################################################################
 
@@ -641,6 +656,7 @@ class BaseAviary(gym.Env):
             Frame number to append to the PNG's filename.
 
         """
+        # print("Image dir: ", os.path.join(path,"frame_"+str(frame_num)+".png"))
         if img_type == ImageType.RGB:
             (Image.fromarray(img_input.astype('uint8'), 'RGBA')).save(os.path.join(path,"frame_"+str(frame_num)+".png"))
         elif img_type == ImageType.DEP:

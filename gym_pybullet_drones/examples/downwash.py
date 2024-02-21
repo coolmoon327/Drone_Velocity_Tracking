@@ -38,7 +38,7 @@ def run(
         control_freq_hz=DEFAULT_CONTROL_FREQ_HZ, 
         duration_sec=DEFAULT_DURATION_SEC,
         output_folder=DEFAULT_OUTPUT_FOLDER,
-        plot=True,
+        plot=False,
         colab=DEFAULT_COLAB
     ):
     #### Initialize the simulation #############################

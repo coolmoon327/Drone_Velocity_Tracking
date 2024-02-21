@@ -73,6 +73,7 @@ def run(multiagent=DEFAULT_MA, output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_
                 train_env,
                 # tensorboard_log=filename+'/tb/',
                 verbose=1)
+                # , device = "mps")
 
     #### Target cumulative rewards (problem-dependent) ##########
     if DEFAULT_ACT == ActionType.ONE_D_RPM:

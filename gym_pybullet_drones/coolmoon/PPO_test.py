@@ -31,7 +31,7 @@ from stable_baselines3.common.monitor import Monitor
 
 from gym_pybullet_drones.utils.Logger import Logger
 # from gym_pybullet_drones.envs.HoverAviary import HoverAviary
-from gym_pybullet_drones.coolmoon.TestAviary import TestAviary
+from .TestAviary import TestAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
@@ -133,7 +133,7 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=5,
+                            n_envs=1,
                             seed=0
                             )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
@@ -144,14 +144,11 @@ def train(filename):
     print('[INFO] Observation space:', train_env.observation_space)
 
     #### Train the model #######################################
-    # model = PPO('MlpPolicy',
-    #             train_env,
-    #             # tensorboard_log=filename+'/tb/',
-    #             verbose=1)
-    #             # , device = "mps")
+    model = PPO('CnnPolicy', train_env, verbose=1, 
+                tensorboard_log=filename+'/tb/', 
+                policy_kwargs={'features_extractor_class': CustomCNN}, 
+                device = "cuda:3")
     
-    model = PPO('CnnPolicy', train_env, verbose=1, tensorboard_log=filename+'/tb/', policy_kwargs={'features_extractor_class': CustomCNN})
-
     #### Target cumulative rewards (problem-dependent) ##########
     target_reward = 9.
 

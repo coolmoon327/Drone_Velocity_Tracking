@@ -3,6 +3,10 @@
 # examples/debug.py
 # examples/test.py
 
+# logs
+
+log.txt
+
 # Third Project
 
 pybullet-URDF-models

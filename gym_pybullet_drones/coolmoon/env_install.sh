@@ -9,4 +9,12 @@ git clone https://github.com/robotology/human-gazebo.git
 
 # conda env
 
-conda install tensorboard
+conda create --name pybullet python=3.10
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+conda install tensorboard numpy scipy
+pip install gymnasium stable-baselines3 pybullet transforms3d
+
+# Run in background
+
+conda activate pybullet
+nohup python main.py >> log.txt &

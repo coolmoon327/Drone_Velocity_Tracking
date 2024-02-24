@@ -9,3 +9,11 @@
 4. 修改了 `BaseAviary.py` 中 `_startVideoRecording` 新建路径的 bug: 使用 `os.path.dirname` 提取路径名，但路径字符串最后不是 `/`，导致忽视了子路径名
 5. 在 `BaseAviary.py` 统一了视频与图片的记录目录
     - 但是视频录制似乎有问题，暂时弃用视频部分
+
+## 2024.2.24
+
+1. 不用 obstacle 来放 target，而是在环境中添加 target 控制对应的函数
+2. 修改 velocity 的控制内容，决定不再改变垂直位置上的速度分量
+3. 为无人机掉落等添加惩罚
+4. 加入对相对速度的判定，并设置对应的终止状态与 reward
+5. 完成第一版 cnn ppo 的搭建

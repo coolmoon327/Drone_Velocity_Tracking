@@ -18,14 +18,16 @@ reinforcement learning library `stable-baselines3`.
 import os
 import time
 from datetime import datetime
-import argparse
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.monitor import Monitor
 
 from gym_pybullet_drones.utils.Logger import Logger
 # from gym_pybullet_drones.envs.HoverAviary import HoverAviary
@@ -34,7 +36,7 @@ from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
 DEFAULT_GUI = True
-DEFAULT_RECORD_VIDEO = True
+DEFAULT_RECORD_VIDEO = False
 DEFAULT_OUTPUT_FOLDER = 'results'
 
 DEFAULT_SIMULATION_FREQ_HZ = 240
@@ -43,6 +45,28 @@ DEFAULT_CONTROL_FREQ_HZ = 24
 DEFAULT_OBS = ObservationType('rgb') # 'kin' or 'rgb'
 DEFAULT_ACT = ActionType('vel') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
 DEFAULT_AGENTS = 1
+
+class CustomCNN(BaseFeaturesExtractor):
+    def __init__(self, observation_space, features_dim=64):
+        super(CustomCNN, self).__init__(observation_space, features_dim)
+        self.cnn = nn.Sequential(
+            nn.Conv2d(in_channels=4, out_channels=32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten()
+        )
+        n_flatten = self.cnn(torch.as_tensor(observation_space.sample()[None]).float()).shape[1]
+        self.linear = nn.Sequential(nn.BatchNorm1d(n_flatten), 
+                                    nn.Linear(n_flatten, 512), 
+                                    nn.BatchNorm1d(512), 
+                                    nn.ReLU(),
+                                    nn.Linear(512, features_dim))
+
+    def forward(self, observations):
+        return self.linear(self.cnn(observations))
 
 def evaluate(filename):
     input("Press Enter to continue...")
@@ -106,29 +130,31 @@ def evaluate(filename):
 
 def train(filename):
     train_env = make_vec_env(TestAviary,
-                                env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
-                                                pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                                n_envs=1,
-                                seed=0
-                                )
+                            env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
+                                            pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
+                                            ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
+                            n_envs=5,
+                            seed=0
+                            )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
+    eval_env = Monitor(eval_env)
 
-    #### Check the environment's spaces ########################
+    #### Check the environment ########################
     print('[INFO] Action space:', train_env.action_space)
     print('[INFO] Observation space:', train_env.observation_space)
 
     #### Train the model #######################################
-    model = PPO('MlpPolicy',
-                train_env,
-                # tensorboard_log=filename+'/tb/',
-                verbose=1)
-                # , device = "mps")
+    # model = PPO('MlpPolicy',
+    #             train_env,
+    #             # tensorboard_log=filename+'/tb/',
+    #             verbose=1)
+    #             # , device = "mps")
+    
+    model = PPO('CnnPolicy', train_env, verbose=1, tensorboard_log=filename+'/tb/', policy_kwargs={'features_extractor_class': CustomCNN})
 
     #### Target cumulative rewards (problem-dependent) ##########
-    if DEFAULT_ACT == ActionType.ONE_D_RPM:
-        target_reward = 949.5
-    else:
-        target_reward = 920.
+    target_reward = 9.
+
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=target_reward,
                                                      verbose=1)
     eval_callback = EvalCallback(eval_env,
@@ -143,6 +169,8 @@ def train(filename):
                 callback=eval_callback,
                 log_interval=100)
 
+    eval_env.close()
+
     #### Save the model ########################################
     model.save(filename+'/final_model.zip')
     print(filename)
@@ -153,13 +181,13 @@ def train(filename):
             print(str(data['timesteps'][j])+","+str(data['results'][j][0]))
 
 def run():
-    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'save-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
-    # if not os.path.exists(filename):
-    #     os.makedirs(filename+'/')
-    # train(filename)
+    filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'save-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
+    if not os.path.exists(filename):
+        os.makedirs(filename+'/')
+    train(filename)
     
-    filename = os.path.join(DEFAULT_OUTPUT_FOLDER, "save-02.17.2024_18.39.15")
-    evaluate(filename)
+    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, "save-for-evaluate")
+    # evaluate(filename)
 
 
 def test():

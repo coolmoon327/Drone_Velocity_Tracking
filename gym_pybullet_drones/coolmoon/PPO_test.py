@@ -26,6 +26,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 
@@ -133,8 +134,8 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=1,
-                            seed=0
+                            n_envs=32,
+                            vec_env_cls=SubprocVecEnv
                             )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
     eval_env = Monitor(eval_env)

@@ -18,3 +18,5 @@ pip install gymnasium stable-baselines3 pybullet transforms3d
 
 conda activate pybullet
 nohup python main.py >> log.txt &
+
+tensorboard --logdir .

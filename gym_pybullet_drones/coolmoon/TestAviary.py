@@ -193,13 +193,13 @@ class TestAviary(BaseRLAviary):
         distance = self._computeDis()
         dis_vel = self._compareVel()
 
-        ret = - np.abs(self.TARGET_dis - distance) - dis_vel
+        ret = 10 / (np.abs(self.TARGET_dis - distance) + 1e-4) - dis_vel
 
         if self._computeTerminated():
-            ret += 10.
+            ret += 100.
 
         if self._computeTruncated():
-            ret += -10.
+            ret += -100.
 
         return ret
 

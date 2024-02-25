@@ -151,7 +151,7 @@ def train(filename):
                 device = "cuda:3")
     
     #### Target cumulative rewards (problem-dependent) ##########
-    target_reward = 9.
+    target_reward = 1e6
 
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=target_reward,
                                                      verbose=1)
@@ -178,14 +178,15 @@ def train(filename):
         for j in range(data['timesteps'].shape[0]):
             print(str(data['timesteps'][j])+","+str(data['results'][j][0]))
 
-def run():
-    filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'save-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
-    if not os.path.exists(filename):
-        os.makedirs(filename+'/')
-    train(filename)
-    
-    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, "save-for-evaluate")
-    # evaluate(filename)
+def run(eval=False):
+    if not eval:
+        filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'save-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
+        if not os.path.exists(filename):
+            os.makedirs(filename+'/')
+        train(filename)
+    else:
+        filename = os.path.join(DEFAULT_OUTPUT_FOLDER, "save-for-evaluate")
+        evaluate(filename)
 
 
 def test():

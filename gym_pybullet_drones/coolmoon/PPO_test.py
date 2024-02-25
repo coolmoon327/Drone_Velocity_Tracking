@@ -51,7 +51,7 @@ class CustomCNN(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim=64):
         super(CustomCNN, self).__init__(observation_space, features_dim)
         self.cnn = nn.Sequential(
-            nn.Conv2d(in_channels=4, out_channels=32, kernel_size=8, stride=4),
+            nn.Conv2d(in_channels=8, out_channels=32, kernel_size=8, stride=4),
             nn.ReLU(),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
             nn.ReLU(),
@@ -134,7 +134,7 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=32,
+                            n_envs=96,
                             vec_env_cls=SubprocVecEnv
                             )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
@@ -163,7 +163,7 @@ def train(filename):
                                  eval_freq=int(1000),
                                  deterministic=True,
                                  render=False)
-    model.learn(total_timesteps=int(1e7),
+    model.learn(total_timesteps=int(1e8),
                 callback=eval_callback,
                 log_interval=100)
 

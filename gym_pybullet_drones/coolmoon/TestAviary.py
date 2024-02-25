@@ -3,7 +3,7 @@ import pybullet as p
 from gymnasium import spaces
 
 from gym_pybullet_drones.envs.BaseRLAviary import BaseRLAviary
-from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
+from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType, ImageType
 
 class TestAviary(BaseRLAviary):
     """测试用环境"""
@@ -52,6 +52,9 @@ class TestAviary(BaseRLAviary):
         ret = super().reset(seed=seed, options=options)
         np.random.seed(seed)
         self._setTarget()
+
+        self.last_rgb = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0], 4)))
+
         return ret
 
     def step(self,
@@ -103,16 +106,27 @@ class TestAviary(BaseRLAviary):
 
     def _observationSpace(self):
         if self.OBS_TYPE == ObservationType.RGB:
+            # (self.IMG_RES[1], self.IMG_RES[0], 4) x 2, now & last
             return spaces.Box(low=0,
                             high=255,
-                            shape=(self.IMG_RES[1], self.IMG_RES[0], 4), dtype=np.uint8)
+                            shape=(self.IMG_RES[1], self.IMG_RES[0], 8), dtype=np.uint8)
         return super()._observationSpace()
     
     def _computeObs(self):
-        obs = super()._computeObs()
         if self.OBS_TYPE == ObservationType.RGB:
-            obs = obs.squeeze(0)
-        return obs
+            if self.step_counter%self.IMG_CAPTURE_FREQ == 0:
+                self.last_rgb = self.rgb
+                self.rgb[0], self.dep[0], self.seg[0] = self._getDroneImages(0, segmentation=False)
+                #### Printing observation to PNG frames example ############
+                if self.RECORD:
+                    self._exportImage(img_type=ImageType.RGB,
+                                        img_input=self.rgb[0],
+                                        path=self.ONBOARD_IMG_PATH+"/drone_0",
+                                        frame_num=int(self.step_counter/self.IMG_CAPTURE_FREQ)
+                                        )
+            concatenated_img = np.concatenate((self.rgb[0], self.last_rgb[0]), axis=2)
+            return np.array(concatenated_img).astype('float32')
+        return super()._computeObs()
     
     ### Action #############################################################################
     

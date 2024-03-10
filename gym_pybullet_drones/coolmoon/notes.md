@@ -37,6 +37,7 @@
         - 表示 `gym` 环境更新一次需要 `pybullet` 更新的次数
     - 如果要捕获图片，需要满足: `IMG_CAPTURE_FREQ % PYB_STEPS_PER_CTRL == 0`
         - 表示 `gym` 环境更新一次时，恰好摄像头正在采样
+        - 即 `CTRL_FREQ % IMG_FRAME_PER_SEC == 0`
 
 
 #### ObservationType.KIN

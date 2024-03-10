@@ -3,14 +3,17 @@
 # examples/debug.py
 # examples/test.py
 
-# logs
-
-log*.txt
-
-# Third Project
+# DIY by coolmoon
 
 pybullet-URDF-models
 human-gazebo
+
+yolo*.pt
+
+test*.png
+results*.jpg
+
+log*.txt
 
 # NumPy saves and videos
 results/

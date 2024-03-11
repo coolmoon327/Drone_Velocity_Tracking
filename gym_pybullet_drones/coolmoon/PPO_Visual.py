@@ -112,8 +112,8 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=1,
-                            # vec_env_cls=SubprocVecEnv
+                            n_envs=36,
+                            vec_env_cls=SubprocVecEnv
                             )
     
     eval_env = Aviary_FrontVelocity(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)

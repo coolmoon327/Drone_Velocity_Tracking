@@ -32,3 +32,11 @@
 1. 使用 obj 模型作为 target
 2. obj 加载后，坐标系有点问题，包括它的速度坐标都需要转换
 3. 需要验证 action 的速度是否正确（研究 computeControl），并进一步设计 reward
+
+## 2024.3.11
+
+1. 修改速度设计
+2. 修改图片特征提取位置
+3. 修改了 step 完毕才重置 has_target 的 bug
+4. 修改 truncated 的惩罚过程
+5. BaseAviary 的 step 改成最后才计算 reward

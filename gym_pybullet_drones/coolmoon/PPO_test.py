@@ -43,7 +43,7 @@ DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_SIMULATION_FREQ_HZ = 240
 DEFAULT_CONTROL_FREQ_HZ = 24
 
-DEFAULT_OBS = ObservationType('rgb') # 'kin' or 'rgb'
+DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
 DEFAULT_ACT = ActionType('vel') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
 DEFAULT_AGENTS = 1
 
@@ -134,8 +134,8 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=32,
-                            vec_env_cls=SubprocVecEnv
+                            n_envs=1,
+                            # vec_env_cls=SubprocVecEnv
                             )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
     eval_env = Monitor(eval_env)
@@ -145,12 +145,13 @@ def train(filename):
     print('[INFO] Observation space:', train_env.observation_space)
 
     #### Train the model #######################################
-    model = PPO('CnnPolicy', train_env, verbose=1, 
+    # model = PPO('CnnPolicy', train_env, verbose=1, 
+    model = PPO('MlpPolicy', train_env, verbose=1, 
                 tensorboard_log=filename+'/tb/', 
-                policy_kwargs={'features_extractor_class': CustomCNN}, 
-                device = "cuda:3",
-                batch_size=128,
-                n_steps = 500)
+                # policy_kwargs={'features_extractor_class': CustomCNN}, 
+                device = "cuda:2",)
+                # batch_size=128,
+                # n_steps = 500)
     
     #### Target cumulative rewards (problem-dependent) ##########
     target_reward = 1e6

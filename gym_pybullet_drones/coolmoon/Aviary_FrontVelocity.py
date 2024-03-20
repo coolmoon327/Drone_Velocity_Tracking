@@ -9,7 +9,7 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, Obs
 
 DEBUG = False
 
-PENALTY = -100.
+PENALTY = -10.
 
 class Aviary_FrontVelocity(BaseRLAviary):
     """Env for front velocity control"""
@@ -33,11 +33,11 @@ class Aviary_FrontVelocity(BaseRLAviary):
             p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
 
         if initial_xyzs is None:
-            initial_xyzs = np.array([[0., 0., .8]])
+            initial_xyzs = np.array([[0., 0., .5]])
         # Keep the TARGET_DIS from the TARGET_POS
         self.TARGET_pos = np.zeros(3)
         self.TARGET_vel = np.zeros(4)
-        self.TARGET_dis = 1.
+        self.TARGET_dis = .5
         self.EPISODE_LEN_SEC = 8
         self.IMGs_per_step = 2
         self.IMG_RES = np.array([640, 320])    # check if it works
@@ -60,7 +60,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
         self.IMGs_steps = []
         self.IMGs_features = []
         self.model = YOLO('yolov8n.pt')
-        self.has_target = False
+        self.lost_targets = 0
         self.step_num = 0
 
         self.reward_penalty = 0.
@@ -74,7 +74,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
         self.IMGs.clear()
         self.IMGs_steps.clear()
         self.IMGs_features.clear()
-        self.has_target = False
+        self.lost_targets = 0
         self.step_num = 0
 
         self.reward_penalty = 0.
@@ -90,7 +90,6 @@ class Aviary_FrontVelocity(BaseRLAviary):
         self.IMGs.clear()
         self.IMGs_steps.clear()
         self.IMGs_features.clear()
-        self.has_target = False
         self.step_num += 1
 
         self.reward_penalty = 0.
@@ -113,14 +112,18 @@ class Aviary_FrontVelocity(BaseRLAviary):
                 # 或者这里记录全部的图片，在 obs 里提取
                 # 需要改状态空间，以及重新定义 obs：考虑两帧之间的时间差
 
+    # def _reset_and_step(self):
+    #     # 直接输入一个不动的命令，然后进入下一个 step
+    #     pass
+
     ### Env Obj #############################################################################
 
     def _setTarget(self):
         if self.GUI:
             p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)   # no rendering when loading
 
-        self.TARGET_pos = np.array([np.random.randint(100,300)/100., 0., .5])
-        self.TARGET_vel = np.array([np.random.randint(-100,100)/50., 0., 0.])
+        self.TARGET_pos = np.array([np.random.randint(100,300)/50., 0., .5])
+        self.TARGET_vel = np.array([np.random.randint(-10,10)/100., 0., 0.])
 
         obj_visual_shape_id = p.createVisualShape(shapeType=p.GEOM_MESH,
                                            fileName="gym_pybullet_drones/coolmoon/models/14-girl-obj/girl OBJ.obj",
@@ -151,10 +154,10 @@ class Aviary_FrontVelocity(BaseRLAviary):
     ### State #############################################################################
 
     def _observationSpace(self):
-        # targets' xywhn of self.IMGs_per_step images
+        # targets' xywn of self.IMGs_per_step images
         return spaces.Box(low=0,
                             high=1.,
-                            shape=(2, 4), dtype=np.uint8)
+                            shape=(2, 3), dtype=np.uint8)
     
     def _computeObs(self):
         obs = []
@@ -163,7 +166,8 @@ class Aviary_FrontVelocity(BaseRLAviary):
             # TODO: 检查初始状态
             rgb, _, _ = self._getDroneImages(0, segmentation=False)
             self.IMGs.append(rgb[:,:,:3])
-            obs.append(np.zeros(4))
+            obs.append(np.zeros(3))
+            # return self._reset_and_step()
 
         if DEBUG:
             print("Step:", self.step_num)
@@ -172,13 +176,20 @@ class Aviary_FrontVelocity(BaseRLAviary):
         # 用 _stepToNextControl 收集的照片 self.IMGs 整理出 obs
         results = self.model.predict(self.IMGs, device=torch.device("cuda:3"), max_det=1, classes=[0], verbose=DEBUG)
 
+        lose_target = False
         for r in results:
             xywhn = r.boxes.xywhn.cpu()
             if xywhn.numel() == 0:
-                obs.append(np.zeros(4))
+                obs.append(np.zeros(3))
+                lose_target = True
             else:
-                obs.append(xywhn.numpy()[0])
-                self.has_target = True
+                obs.append(xywhn.numpy()[0, :-1])
+
+        if lose_target:
+            self.lost_targets += 1
+            # return self._reset_and_step()
+        else:
+            self.lost_targets = 0
 
         obs = np.array(obs).astype('float32')
 
@@ -187,7 +198,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
         return obs
     
     ### Action #############################################################################
-    
+
     def _actionSpace(self):
         if self.ACT_TYPE == ActionType.VEL:
             # only velocity
@@ -202,7 +213,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
 
     def _preprocessAction(self, action):
         # TODO: 限制 action 的范围
-        action = action * (0.1 * self.SPEED_LIMIT)
+        action = action * (0.05 * self.SPEED_LIMIT)
 
         self.action_buffer.append(action)
         if DEBUG:
@@ -212,6 +223,18 @@ class Aviary_FrontVelocity(BaseRLAviary):
 
         rpm = np.zeros((self.NUM_DRONES,4))
         state = self._getDroneStateVector(drone_id)
+
+        if self.lost_targets:
+            temp, _, _ = self.ctrl[drone_id].computeControl(control_timestep=self.CTRL_TIMESTEP,
+                                                cur_pos=state[0:3],
+                                                cur_quat=state[3:7],
+                                                cur_vel=state[10:13],
+                                                cur_ang_vel=state[13:16],
+                                                target_pos=state[0:3], # same as the current position
+                                                )
+            rpm[drone_id,:] = temp
+            return rpm
+
         cur_vel=state[10:13]
         cur_speed = np.linalg.norm(cur_vel)
         speed_increase = action[0][0]
@@ -265,7 +288,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
         # dis_vel = self._compareVel()
 
         # ret = 10 / (np.abs(self.TARGET_dis - distance) + 1e-4) - dis_vel
-        ret = -np.abs(self.TARGET_dis - distance)
+        ret = 5. - np.abs(self.TARGET_dis - distance)
 
         if self._computeTerminated():
             ret += 100.
@@ -280,8 +303,9 @@ class Aviary_FrontVelocity(BaseRLAviary):
     
     def _computeTerminated(self):
         distance = self._computeDis()
-        dis_vel = self._compareVel()
-        if np.abs(self.TARGET_dis - distance) < .01 and dis_vel < .01:
+        # dis_vel = self._compareVel()
+        # if np.abs(self.TARGET_dis - distance) < .01 and dis_vel < .01:
+        if np.abs(self.TARGET_dis - distance) < .01:
             if DEBUG:
                 print("Terminated.")
             return True
@@ -313,7 +337,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
             self.reward_penalty += PENALTY
             return True
         
-        if self.step_num > 10 and self.has_target == False:
+        if self.lost_targets > 3:
             # 目标脱离摄像头
             if DEBUG:
                 print("Truncated: too far.")

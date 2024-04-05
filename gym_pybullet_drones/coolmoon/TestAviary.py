@@ -5,7 +5,12 @@ from gymnasium import spaces
 from gym_pybullet_drones.envs.BaseRLAviary import BaseRLAviary
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType, ImageType
 
+from ultralytics import YOLO
+import torch
+
 PENALTY = -10.
+MAX_DIS = 5.
+MAX_V = 10.
 DEBUG = False
 
 class TestAviary(BaseRLAviary):
@@ -26,16 +31,18 @@ class TestAviary(BaseRLAviary):
                  act: ActionType=ActionType.VEL,
                  output_folder='results'
                  ):
-        if gui:
-            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
+        # if gui:
+        #     p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
 
         if initial_xyzs is None:
             initial_xyzs = np.array([[0., 0., .8]])
         # Keep the TARGET_DIS from the TARGET_POS
         self.TARGET_pos = np.zeros(3)
         self.TARGET_vel = np.zeros(4)
-        self.TARGET_dis = 1.
+        self.TARGET_dis = 0.4
         self.EPISODE_LEN_SEC = 8
+        self.IMG_RES = np.array([640, 480]) 
+
         super().__init__(drone_model=drone_model,
                          num_drones=1,
                          initial_xyzs=initial_xyzs,
@@ -51,6 +58,8 @@ class TestAviary(BaseRLAviary):
                          )
 
         self.reward_penalty = 0.
+        self.obs = None
+        self.model = YOLO('yolov8n.pt')
 
     ### Env API #############################################################################
 
@@ -76,6 +85,7 @@ class TestAviary(BaseRLAviary):
 
         ret = super().step(action=action)
         self._updateTarget()
+
         return ret
 
     ### Env Obj #############################################################################
@@ -84,33 +94,24 @@ class TestAviary(BaseRLAviary):
         if self.GUI:
             p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)   # no rendering when loading
 
-        # self.TARGET_POS = np.array([np.random.randint(100,500)/100., np.random.randint(-300,300)/100., 1])
-        self.TARGET_pos = np.array([np.random.randint(100,300)/100., 0., .5])
-        # self.TARGET_vel = np.array([np.random.randint(0,100)/100., 0., 0.])
+        self.TARGET_pos = np.array([np.random.randint(50,500)/100., 0., .5])
+        # self.TARGET_pos = np.array([2., 0., .5])
+        self.TARGET_vel = np.array([0., 0., 0.])
         
-
-        # self.TARGET_ID = p.loadURDF("human-gazebo/humanSubject01/humanSubject01_66dof.urdf",
-        # self.TARGET_ID = p.loadURDF("duck_vhacd.urdf",
-        #             self.TARGET_pos,
-        #             p.getQuaternionFromEuler([0, 0, np.pi]),
-        #             physicsClientId=self.CLIENT,
-        #             globalScaling=2
-        #             )
         # 加载 OBJ 文件
         obj_visual_shape_id = p.createVisualShape(shapeType=p.GEOM_MESH,
-                                           fileName="gym_pybullet_drones/coolmoon/models/14-girl-obj/girl OBJ.obj",
-                                           meshScale=[0.3, 0.3, 0.3],
-                                           rgbaColor=[1.0, 0.8, 0.6, 1.0])
-
+                                           fileName="gym_pybullet_drones/coolmoon/models/SittingBaby/baby.obj",
+                                           meshScale=[0.02, 0.02, 0.02])
+        
         # 创建物体
         self.TARGET_ID = p.createMultiBody(baseMass=1.0,
                                         baseCollisionShapeIndex=-1,
                                         baseVisualShapeIndex=obj_visual_shape_id,
                                         basePosition=self.TARGET_pos,
-                                        baseOrientation=p.getQuaternionFromEuler([np.pi/2, 0, -np.pi/2]))
-        
-        # self.TARGET_vel = self.TARGET_vel[np.array([1, 2, 0])]
-        self.TARGET_vel = np.array([1, 0, 0])
+                                        baseOrientation=p.getQuaternionFromEuler([0, 0, -np.pi/2]))
+
+        # self.TARGET_vel = self.TARGET_vel[np.array([1, 0, 0])]
+        self.TARGET_vel = np.array([0, 0, 0])
 
         p.resetBaseVelocity(self.TARGET_ID, linearVelocity=self.TARGET_vel)
 
@@ -145,9 +146,12 @@ class TestAviary(BaseRLAviary):
     def _observationSpace(self):
         if self.OBS_TYPE == ObservationType.RGB:
             # (self.IMG_RES[1], self.IMG_RES[0], 4) x 2, now & last
+            # return spaces.Box(low=0,
+            #                 high=255,
+            #                 shape=(self.IMG_RES[1], self.IMG_RES[0], 8), dtype=np.uint8)
             return spaces.Box(low=0,
-                            high=255,
-                            shape=(self.IMG_RES[1], self.IMG_RES[0], 8), dtype=np.uint8)
+                            high=1.,
+                            shape=(1, 4), dtype=np.uint8)   # xyhw
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
             #### OBS SPACE OF SIZE 12
@@ -169,18 +173,41 @@ class TestAviary(BaseRLAviary):
     
     def _computeObs(self):
         if self.OBS_TYPE == ObservationType.RGB:
-            if self.step_counter%self.IMG_CAPTURE_FREQ == 0:
-                self.last_rgb = self.rgb
-                self.rgb[0], self.dep[0], self.seg[0] = self._getDroneImages(0, segmentation=False)
-                #### Printing observation to PNG frames example ############
-                if self.RECORD:
-                    self._exportImage(img_type=ImageType.RGB,
-                                        img_input=self.rgb[0],
-                                        path=self.ONBOARD_IMG_PATH+"/drone_0",
-                                        frame_num=int(self.step_counter/self.IMG_CAPTURE_FREQ)
-                                        )
-            concatenated_img = np.concatenate((self.rgb[0], self.last_rgb[0]), axis=2)
-            return np.array(concatenated_img).astype('float32')
+            # if self.step_counter%self.IMG_CAPTURE_FREQ == 0:
+            #     self.last_rgb = self.rgb
+            #     self.rgb[0], self.dep[0], self.seg[0] = self._getDroneImages(0, segmentation=False)
+            #     #### Printing observation to PNG frames example ############
+            #     if self.RECORD:
+            #         self._exportImage(img_type=ImageType.RGB,
+            #                             img_input=self.rgb[0],
+            #                             path=self.ONBOARD_IMG_PATH+"/drone_0",
+            #                             frame_num=int(self.step_counter/self.IMG_CAPTURE_FREQ)
+            #                             )
+            # concatenated_img = np.concatenate((self.rgb[0], self.last_rgb[0]), axis=2)
+            # return np.array(concatenated_img).astype('float32')
+
+            rgb, _, _ = self._getDroneImages(0, segmentation=False)
+            rgb = rgb[:,:,:3]
+            # results = self.model.predict(rgb, max_det=1, classes=[0], verbose=DEBUG)
+            results = self.model.predict(rgb, device=torch.device("cuda:2"), max_det=1, classes=[0], verbose=DEBUG)
+
+            lose_target = False
+            for r in results:
+                xywhn = r.boxes.xywhn.cpu()
+                if xywhn.numel() == 0:
+                    lose_target = True
+                    break
+                if DEBUG:
+                    print("Target XYWH:", xywhn, ", area:", xywhn[0][2]*xywhn[0][3]*self.IMG_RES[0]*self.IMG_RES[1])
+            if lose_target:
+                if DEBUG:
+                    print("==== Warning: Lose target! ====")
+                obs = np.zeros([1, 4])
+            else:
+                obs = xywhn
+
+            self.obs = np.array(obs).astype('float32')
+
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
             #### OBS SPACE OF SIZE 12 + 1 (dis)
@@ -193,8 +220,13 @@ class TestAviary(BaseRLAviary):
             #### Add action buffer to observation #######################
             for i in range(self.ACTION_BUFFER_SIZE):
                 ret = np.hstack([ret, np.array([self.action_buffer[i][j, :] for j in range(self.NUM_DRONES)])])
-            return ret
-        return super()._computeObs()
+
+            self.obs = ret
+            
+        else:
+            self.obs = super()._computeObs()
+
+        return self.obs
     
     ### Action #############################################################################
     
@@ -237,42 +269,15 @@ class TestAviary(BaseRLAviary):
             return super()._actionSpace()
 
     def _preprocessAction(self, action):
-        action = action * (0.1 * self.SPEED_LIMIT)
-
-        self.action_buffer.append(action)
-        if DEBUG:
-            print("Action:", action)
-
-        drone_id = 0
-
-        rpm = np.zeros((self.NUM_DRONES,4))
-        state = self._getDroneStateVector(drone_id)
-        cur_vel=state[10:13]
-        cur_speed = np.linalg.norm(cur_vel)
-        speed_increase = action[0][0]
-        new_speed = cur_speed + speed_increase
-        if abs(new_speed) > self.SPEED_LIMIT:
-            new_speed = self.SPEED_LIMIT * (new_speed / abs(new_speed))
-
-        # speed = np.linalg.norm(cur_vel) + speed_increase
-        # action = np.hstack((cur_vel, speed))
-        # action = np.expand_dims(action, axis=0)
-        # print(cur_vel, speed, action)
-        
-        if cur_speed != 0:
-            v_unit_vector = cur_vel / cur_speed
-        else:
-            v_unit_vector = np.array([1., 0., 0.])   # 本场景仅限 x 轴移动
-        temp, _, _ = self.ctrl[drone_id].computeControl(control_timestep=self.CTRL_TIMESTEP,
-                                                cur_pos=state[0:3],
-                                                cur_quat=state[3:7],
-                                                cur_vel=state[10:13],
-                                                cur_ang_vel=state[13:16],
-                                                target_pos=state[0:3], # same as the current position
-                                                target_rpy=np.array([0,0,state[9]]), # keep current yaw
-                                                target_vel=new_speed * v_unit_vector # target the desired velocity vector, TODO: check here
-                                                )
-        rpm[drone_id,:] = temp
+        if self.obs is not None:
+            if np.any(self.obs != 0):
+                vel = action[0][0]
+                neg = vel/abs(vel) if vel != 0 else 0.
+                action = np.array([[1 * neg, 0, 0, abs(vel)]])
+                rpm = super()._preprocessAction(action)
+                return rpm
+            
+        rpm = super()._preprocessAction(np.zeros([1,4]))
         return rpm
 
 
@@ -311,13 +316,15 @@ class TestAviary(BaseRLAviary):
 
     def _computeReward(self):
         distance = self._computeDis()
-        # dis_vel = self._compareVel()
+        dis_vel = self._compareVel()
 
-        # ret = 10 / (np.abs(self.TARGET_dis - distance) + 1e-4) - dis_vel
-        ret = - np.abs(self.TARGET_dis - distance)
+        rew_d = 1. - np.abs(self.TARGET_dis - distance) / MAX_DIS
+        rew_v = 1. - dis_vel / MAX_V
+
+        ret = rew_d + rew_v - 1 # 尽量让均值在 0.
 
         if self._computeTerminated():
-            ret += 100.
+            ret += 10.
 
         # if self._computeTruncated():
         #     ret += -100.
@@ -346,7 +353,7 @@ class TestAviary(BaseRLAviary):
         """
         state = self._getDroneStateVector(0)
 
-        if np.abs(self.TARGET_dis - self._computeDis()) > 10.:
+        if np.abs(self.TARGET_dis - self._computeDis()) > MAX_DIS:
             # Truncate when the drone is too far away
             if DEBUG:
                 print("Truncated: too far.")

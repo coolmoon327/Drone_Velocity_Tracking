@@ -29,8 +29,8 @@ class Aviary_FrontVelocity(BaseRLAviary):
                  act: ActionType=ActionType.VEL,
                  output_folder='results'
                  ):
-        if gui:
-            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
+        # if gui:
+        #     p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
 
         if initial_xyzs is None:
             initial_xyzs = np.array([[0., 0., .5]])
@@ -125,10 +125,11 @@ class Aviary_FrontVelocity(BaseRLAviary):
         self.TARGET_pos = np.array([np.random.randint(100,300)/50., 0., .5])
         self.TARGET_vel = np.array([np.random.randint(-10,10)/100., 0., 0.])
 
+        texture_id = p.loadTexture("gym_pybullet_drones/coolmoon/models/14-girl-obj/girl.mtl")
         obj_visual_shape_id = p.createVisualShape(shapeType=p.GEOM_MESH,
-                                           fileName="gym_pybullet_drones/coolmoon/models/14-girl-obj/girl OBJ.obj",
-                                           meshScale=[0.3, 0.3, 0.3],
-                                           rgbaColor=[1.0, 0.8, 0.6, 1.0])
+                                           fileName="gym_pybullet_drones/coolmoon/models/14-girl-obj/girl.obj",
+                                           meshScale=[0.3, 0.3, 0.3], 
+                                           textureUniqueId=texture_id)
 
         self.TARGET_ID = p.createMultiBody(baseMass=1.0,
                                         baseCollisionShapeIndex=-1,

@@ -37,13 +37,13 @@ from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
 DEFAULT_GUI = False
-DEFAULT_RECORD_VIDEO = True
+DEFAULT_RECORD_VIDEO = False
 DEFAULT_OUTPUT_FOLDER = 'results'
 
 DEFAULT_SIMULATION_FREQ_HZ = 240
 DEFAULT_CONTROL_FREQ_HZ = 24
 
-DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
+DEFAULT_OBS = ObservationType('rgb') # 'kin' or 'rgb'
 DEFAULT_ACT = ActionType('vel') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
 DEFAULT_AGENTS = 1
 
@@ -134,8 +134,8 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=1,
-                            # vec_env_cls=SubprocVecEnv
+                            n_envs=32,
+                            vec_env_cls=SubprocVecEnv
                             )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
     eval_env = Monitor(eval_env)
@@ -147,7 +147,7 @@ def train(filename):
     #### Train the model #######################################
     # model = PPO('CnnPolicy', train_env, verbose=1, 
     model = PPO('MlpPolicy', train_env, verbose=1, 
-                tensorboard_log=filename+'/tb/', 
+                tensorboard_log=filename+'/tb/',
                 # policy_kwargs={'features_extractor_class': CustomCNN}, 
                 device = "cuda:2",)
                 # batch_size=128,
@@ -192,39 +192,41 @@ def run(eval=False):
         evaluate(filename)
 
 
-def test():
-    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'save-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
-    # if not os.path.exists(filename):
-    #     os.makedirs(filename+'/')
-
-    env = TestAviary(gui=DEFAULT_GUI,
-                        obs=DEFAULT_OBS,
-                        act=DEFAULT_ACT,
-                        pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
-                        ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,
-                        record=DEFAULT_RECORD_VIDEO,
+def test_velocity():
+    env = TestAviary(gui=True,
+                        obs=ObservationType('rgb'),
+                        act=ActionType('vel'),
+                        pyb_freq=240,
+                        ctrl_freq=24,
+                        record=True,
                         )
 
+    print('=========================')
     print('[INFO] Action space:', env.action_space)
     print('[INFO] Observation space:', env.observation_space)
+    print('=========================')
 
     obs, info = env.reset(seed=88, options={})
-    action = np.zeros((1, 4))
-    # action = np.zeros((1, 3))
-    start = time.time()
-    # for i in range((env.EPISODE_LEN_SEC+2)*env.CTRL_FREQ):
-    for i in range(10):
-        action = np.array([[-1,0,0,1]])
-        # action = np.array([[-0.5,0,0.1]])
-        obs, reward, terminated, truncated, info = env.step(action)
+    # action = np.zeros((1, 4))
+    action = np.array([[1.]])
 
-        env.render()
+    start = time.time()
+    for i in range(100):
+        obs, reward, terminated, truncated, info = env.step(action)
+        # env.render()
         sync(i, start, env.CTRL_TIMESTEP)
         if terminated:
             obs = env.reset(seed=42, options={})
 
     env.close()
 
+
+def test():
+    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'save-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
+    # if not os.path.exists(filename):
+    #     os.makedirs(filename+'/')
+
+    test_velocity()
 
 
 if __name__ == '__main__':

@@ -134,7 +134,8 @@ class BaseAviary(gym.Env):
             os.makedirs(os.path.dirname(self.ONBOARD_IMG_PATH), exist_ok=True)
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
-            self.IMG_RES = np.array([64, 48])   # default 64x48
+            if not hasattr(self, 'IMG_RES'):
+                self.IMG_RES = np.array([64, 48])   # default 64x48
             self.IMG_FRAME_PER_SEC = 24           # default 24
             self.IMG_CAPTURE_FREQ = int(self.PYB_FREQ/self.IMG_FRAME_PER_SEC)
             self.rgb = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0], 4)))
@@ -159,8 +160,8 @@ class BaseAviary(gym.Env):
                                          physicsClientId=self.CLIENT
                                          )
             ret = p.getDebugVisualizerCamera(physicsClientId=self.CLIENT)
-            print("viewMatrix", ret[2])
-            print("projectionMatrix", ret[3])
+            # print("viewMatrix", ret[2])
+            # print("projectionMatrix", ret[3])
             if self.USER_DEBUG:
                 #### Add input sliders to the GUI ##########################
                 self.SLIDERS = -1*np.ones(4)
@@ -297,7 +298,7 @@ class BaseAviary(gym.Env):
                                                      shadow=1,
                                                      viewMatrix=self.CAM_VIEW,
                                                      projectionMatrix=self.CAM_PRO,
-                                                     renderer=p.ER_TINY_RENDERER,
+                                                     renderer=p.ER_TINY_RENDERER,  # ER_BULLET_HARDWARE_OPENGL or ER_TINY_RENDERER
                                                      flags=p.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
                                                      physicsClientId=self.CLIENT
                                                      )
@@ -425,7 +426,9 @@ class BaseAviary(gym.Env):
         """Terminates the environment.
         """
         if self.RECORD and self.GUI:
-            p.stopStateLogging(self.VIDEO_ID, physicsClientId=self.CLIENT)
+            if DEFAULT_VIDEO_RECORD:
+                # video recording has some bugs, so deprecate temporarily
+                p.stopStateLogging(self.VIDEO_ID, physicsClientId=self.CLIENT)
         p.disconnect(physicsClientId=self.CLIENT)
     
     ################################################################################
@@ -539,7 +542,7 @@ class BaseAviary(gym.Env):
             path = os.path.join(self.ONBOARD_IMG_PATH, "video_" + datetime.now().strftime("%d-%H.%M.%S")) if path is None else path
         else:
             path = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S")) if path is None else path
-        
+
         if self.RECORD and self.GUI:
             if DEFAULT_VIDEO_RECORD == False:
                 # video recording has some bugs, so deprecate temporarily
@@ -553,6 +556,9 @@ class BaseAviary(gym.Env):
                                                 fileName=os.path.join(VIDEO_FOLDER, "output.mp4"),
                                                 physicsClientId=self.CLIENT
                                                 )
+            
+            print(self.VIDEO_ID)
+
         if self.RECORD and not self.GUI:
             self.FRAME_NUM = 0
             # self.IMG_PATH = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"), '')
@@ -620,8 +626,8 @@ class BaseAviary(gym.Env):
                                              cameraUpVector=[0, 0, 1],
                                              physicsClientId=self.CLIENT
                                              )
-        DRONE_CAM_PRO =  p.computeProjectionMatrixFOV(fov=60.0,
-                                                      aspect=1.0,
+        DRONE_CAM_PRO =  p.computeProjectionMatrixFOV(fov=100.0,
+                                                      aspect=self.IMG_RES[0]/self.IMG_RES[1],
                                                       nearVal=self.L,
                                                       farVal=1000.0
                                                       )

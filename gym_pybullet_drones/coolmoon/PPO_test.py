@@ -134,7 +134,7 @@ def train(filename):
                             env_kwargs=dict(obs=DEFAULT_OBS, act=DEFAULT_ACT, 
                                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,),
-                            n_envs=32,
+                            n_envs=16,
                             vec_env_cls=SubprocVecEnv
                             )
     eval_env = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
@@ -149,7 +149,7 @@ def train(filename):
     model = PPO('MlpPolicy', train_env, verbose=1, 
                 tensorboard_log=filename+'/tb/',
                 # policy_kwargs={'features_extractor_class': CustomCNN}, 
-                device = "cuda:2",)
+                device = "cuda:3",)
                 # batch_size=128,
                 # n_steps = 500)
     
@@ -193,13 +193,13 @@ def run(eval=False):
 
 
 def test_velocity():
-    env = TestAviary(gui=True,
-                        obs=ObservationType('rgb'),
-                        act=ActionType('vel'),
-                        pyb_freq=240,
-                        ctrl_freq=24,
-                        record=True,
-                        )
+    env = TestAviary(obs=ObservationType('rgb'),
+                    act=ActionType('vel'),
+                    pyb_freq=240,
+                    ctrl_freq=24,
+                    gui=False,
+                    record=False,
+                    )
 
     print('=========================')
     print('[INFO] Action space:', env.action_space)
@@ -208,14 +208,15 @@ def test_velocity():
 
     obs, info = env.reset(seed=88, options={})
     # action = np.zeros((1, 4))
-    action = np.array([[1.]])
+    action = np.array([[.1]])
+    # action = np.array([[0.]])
 
     start = time.time()
-    for i in range(100):
+    for i in range(1000):
         obs, reward, terminated, truncated, info = env.step(action)
         # env.render()
         sync(i, start, env.CTRL_TIMESTEP)
-        if terminated:
+        if terminated or truncated:
             obs = env.reset(seed=42, options={})
 
     env.close()

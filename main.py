@@ -6,4 +6,5 @@ if __name__ == '__main__':
     # Visual.run(True)  # test
 
     Test.run()
+    # Test.run(1)
     # Test.test()

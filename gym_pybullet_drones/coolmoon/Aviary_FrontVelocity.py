@@ -33,11 +33,11 @@ class Aviary_FrontVelocity(BaseRLAviary):
         #     p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
 
         if initial_xyzs is None:
-            initial_xyzs = np.array([[0., 0., .5]])
+            initial_xyzs = np.array([[0., 0., .8]])
         # Keep the TARGET_DIS from the TARGET_POS
         self.TARGET_pos = np.zeros(3)
         self.TARGET_vel = np.zeros(4)
-        self.TARGET_dis = .5
+        self.TARGET_dis = .4
         self.EPISODE_LEN_SEC = 8
         self.IMGs_per_step = 2
         self.IMG_RES = np.array([640, 320])    # check if it works

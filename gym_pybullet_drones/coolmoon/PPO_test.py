@@ -36,7 +36,7 @@ from .TestAviary import TestAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
-DEFAULT_GUI = False
+DEFAULT_GUI = True
 DEFAULT_RECORD_VIDEO = False
 DEFAULT_OUTPUT_FOLDER = 'results'
 
@@ -78,7 +78,11 @@ def evaluate(filename):
         path = filename+'/best_model.zip'
     else:
         print("[ERROR]: no model under the specified path", filename)
-    model = PPO.load(path, device = "cuda:3")
+    
+    if torch.cuda.is_available():
+        model = PPO.load(path, device = "cuda:3")
+    else:
+        model = PPO.load(path)
 
     #### Show (and record a video of) the model's performance ##
     test_env = TestAviary(gui=DEFAULT_GUI,
@@ -197,7 +201,7 @@ def test_velocity():
                     act=ActionType('vel'),
                     pyb_freq=240,
                     ctrl_freq=24,
-                    gui=False,
+                    gui=True,
                     record=False,
                     )
 
@@ -208,7 +212,7 @@ def test_velocity():
 
     obs, info = env.reset(seed=88, options={})
     # action = np.zeros((1, 4))
-    action = np.array([[.1]])
+    action = np.array([[.3]])
     # action = np.array([[0.]])
 
     start = time.time()

@@ -11,7 +11,7 @@ import torch
 PENALTY = -100.
 MAX_DIS = 5.
 MAX_V = 5.
-DEBUG = False
+DEBUG = True
 
 class TestAviary(BaseRLAviary):
     """测试用环境"""
@@ -37,6 +37,7 @@ class TestAviary(BaseRLAviary):
         if initial_xyzs is None:
             initial_xyzs = np.array([[0., 0., .8]])
         # Keep the TARGET_DIS from the TARGET_POS
+        self.TARGET_rpy = np.zeros(3)
         self.TARGET_pos = np.zeros(3)
         self.TARGET_vel = np.zeros(4)
         self.TARGET_dis = 0.4
@@ -81,6 +82,9 @@ class TestAviary(BaseRLAviary):
         np.random.seed(seed)
         self._setTarget()
 
+        state = self._getDroneStateVector(0)
+        self.TARGET_rpy = state[7:10]
+
         return ret
 
     def step(self,
@@ -105,10 +109,11 @@ class TestAviary(BaseRLAviary):
         # self.TARGET_pos = np.array([.4, 0., .5])
         self.TARGET_vel = np.array([0., 0., 0.])
         
+        # if not hasattr(self, 'TARGET_ID'):
         # 加载 OBJ 文件
         obj_visual_shape_id = p.createVisualShape(shapeType=p.GEOM_MESH,
-                                           fileName="gym_pybullet_drones/coolmoon/models/SittingBaby/baby.obj",
-                                           meshScale=[0.02, 0.02, 0.02])
+                                        fileName="gym_pybullet_drones/coolmoon/models/SittingBaby/baby.obj",
+                                        meshScale=[0.02, 0.02, 0.02])
         
         # 创建物体
         self.TARGET_ID = p.createMultiBody(baseMass=1.0,
@@ -116,14 +121,15 @@ class TestAviary(BaseRLAviary):
                                         baseVisualShapeIndex=obj_visual_shape_id,
                                         basePosition=self.TARGET_pos,
                                         baseOrientation=p.getQuaternionFromEuler([0, 0, -np.pi/2]))
+            
+        # No gravity or inertial
+        p.changeDynamics(self.TARGET_ID, -1, mass=0.)
 
         # self.TARGET_vel = self.TARGET_vel[np.array([1, 0, 0])]
         self.TARGET_vel = np.array([0, 0, 0])
 
         p.resetBaseVelocity(self.TARGET_ID, linearVelocity=self.TARGET_vel)
 
-        # # No gravity or inertial
-        p.changeDynamics(self.TARGET_ID, -1, mass=0.)
         # for jointIndex in range(p.getNumJoints(self.TARGET_ID)):
         #     p.changeDynamics(self.TARGET_ID, jointIndex, mass=0.)
         
@@ -179,8 +185,11 @@ class TestAviary(BaseRLAviary):
         if self.OBS_TYPE == ObservationType.RGB:
             rgb, _, _ = self._getDroneImages(0, segmentation=False)
             rgb = rgb[:,:,:3]
-            # results = self.model.predict(rgb, max_det=1, classes=[0], verbose=False)
-            results = self.model.predict(rgb, device=torch.device("cuda:2"), max_det=1, classes=[0], verbose=False)
+            
+            if torch.cuda.is_available():
+                results = self.model.predict(rgb, device=torch.device("cuda:2"), max_det=1, classes=[0], verbose=False)
+            else:
+                results = self.model.predict(rgb, max_det=1, classes=[0], verbose=False)
 
             lose_target = False
             for r in results:
@@ -247,17 +256,39 @@ class TestAviary(BaseRLAviary):
                     neg = 1
 
                 action = np.array([[1 * neg, 0, 0, abs(vel)]])
-                rpm = super()._preprocessAction(action)
+                rpm = self._vel_to_rpm(action) # TODO: 这里有大问题，飞的时候会漂移. 实际上，飞的时候并不能保证速度，RL 的状态还需要当前的一些 kinematics
 
                 if DEBUG:
                     print(action)
                     
                 return rpm
             
-        rpm = super()._preprocessAction(np.zeros([1,4]))
+        rpm = self._vel_to_rpm(np.zeros([1,4]))
         return rpm
 
+    def _vel_to_rpm(self, vel):
+        ## vel: np.array(1,4) ##
 
+        self.action_buffer.append(vel)
+        vel = vel[0, :]
+        rpm = np.zeros((self.NUM_DRONES,4))
+        state = self._getDroneStateVector(0)
+
+        if np.linalg.norm(vel[0:3]) != 0:
+            v_unit_vector = vel[0:3] / np.linalg.norm(vel[0:3])
+        else:
+            v_unit_vector = np.zeros(3)
+        temp, _, _ = self.ctrl[0].computeControl(control_timestep=self.CTRL_TIMESTEP,
+                                                cur_pos=state[0:3],
+                                                cur_quat=state[3:7],
+                                                cur_vel=state[10:13],
+                                                cur_ang_vel=state[13:16],
+                                                target_pos=np.array([state[0], self.INIT_XYZS[0][1], self.INIT_XYZS[0][2]]), # same as the current X position
+                                                target_rpy=self.TARGET_rpy, # keep original rpy
+                                                target_vel=self.SPEED_LIMIT * np.abs(vel[3]) * v_unit_vector # target the desired velocity vector
+                                                )
+        rpm[0,:] = temp
+        return rpm
 
     ### Reward #############################################################################
     

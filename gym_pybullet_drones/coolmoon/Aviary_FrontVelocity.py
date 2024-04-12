@@ -341,7 +341,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
         if self.lost_targets > 3:
             # 目标脱离摄像头
             if DEBUG:
-                print("Truncated: too far.")
+                print("Truncated: lose target.")
             self.reward_penalty += PENALTY
             return True
 

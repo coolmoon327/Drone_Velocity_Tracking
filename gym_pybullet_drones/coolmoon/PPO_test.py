@@ -203,6 +203,7 @@ def test_velocity():
                     ctrl_freq=24,
                     gui=True,
                     record=False,
+                    debug=True
                     )
 
     print('=========================')
@@ -220,7 +221,8 @@ def test_velocity():
         obs, reward, terminated, truncated, info = env.step(action)
         # env.render()
         sync(i, start, env.CTRL_TIMESTEP)
-        if terminated or truncated:
+        # if terminated or truncated:
+        if terminated:
             obs = env.reset(seed=42, options={})
 
     env.close()

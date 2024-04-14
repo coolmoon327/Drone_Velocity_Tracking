@@ -8,7 +8,7 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, Obs
 from ultralytics import YOLO
 import torch
 
-PENALTY = -100.
+PENALTY = -1000. # TODO: 似乎要调大到 1000 的量级, 或者直接用更小的 gamma
 MAX_DIS = 5.
 MAX_V = 1.
 

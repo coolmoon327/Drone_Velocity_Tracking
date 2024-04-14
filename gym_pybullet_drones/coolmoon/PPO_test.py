@@ -36,7 +36,7 @@ from .TestAviary import TestAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
-DEFAULT_GUI = True
+DEFAULT_GUI = False
 DEFAULT_RECORD_VIDEO = False
 DEFAULT_OUTPUT_FOLDER = 'results'
 
@@ -128,8 +128,8 @@ def evaluate(filename):
         test_env.render()
         # print(terminated)
         sync(i, start, test_env.CTRL_TIMESTEP)
-        if terminated:
-            obs = test_env.reset(seed=42, options={})
+        if terminated or truncated:
+            obs, info = test_env.reset(options={})
     test_env.close()
 
     # if DEFAULT_OBS == ObservationType.KIN:
@@ -155,7 +155,8 @@ def train(filename):
     model = PPO('MlpPolicy', train_env, verbose=1, 
                 tensorboard_log=filename+'/tb/',
                 # policy_kwargs={'features_extractor_class': CustomCNN}, 
-                device = "cuda:3",)
+                device = "cuda:3",
+                gamma=0.9)
                 # batch_size=128,
                 # n_steps = 500)
     

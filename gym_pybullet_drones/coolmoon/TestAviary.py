@@ -194,7 +194,12 @@ class TestAviary(BaseRLAviary):
 
         now_kin = self._getDroneStateVector(0)
         cur_vel = np.array(now_kin[10:13])
-        velocity = np.linalg.norm(cur_vel[0:3]) * (cur_vel[0]/abs(cur_vel[0]))
+        
+        if abs(cur_vel[0]) != 0:
+            velocity = np.linalg.norm(cur_vel[0:3]) * (cur_vel[0]/abs(cur_vel[0]))
+        else:
+            velocity = 0.
+
 
         obs = np.concatenate((obs, velocity), axis=None).reshape(1, -1)
         # print(obs)

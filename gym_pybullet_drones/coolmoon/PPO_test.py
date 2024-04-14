@@ -91,19 +91,21 @@ def evaluate(filename):
                             pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                             ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,
                             record=DEFAULT_RECORD_VIDEO)
-    test_env_nogui = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
-    logger = Logger(logging_freq_hz=int(test_env.CTRL_FREQ),
-                num_drones=1,
-                output_folder=DEFAULT_OUTPUT_FOLDER
-                )
+    
+    test_env.debug = True
 
-    mean_reward, std_reward = evaluate_policy(model,
-                                              test_env_nogui,
-                                              n_eval_episodes=10
-                                              )
-    print("\n\n\nMean reward ", mean_reward, " +- ", std_reward, "\n\n")
+    # test_env_nogui = TestAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT, pyb_freq=DEFAULT_SIMULATION_FREQ_HZ, ctrl_freq=DEFAULT_CONTROL_FREQ_HZ)
+    # logger = Logger(logging_freq_hz=int(test_env.CTRL_FREQ),
+    #             num_drones=1,
+    #             output_folder=DEFAULT_OUTPUT_FOLDER
+    #             )
+    # mean_reward, std_reward = evaluate_policy(model,
+    #                                           test_env_nogui,
+    #                                           n_eval_episodes=10
+    #                                           )
+    # print("\n\n\nMean reward ", mean_reward, " +- ", std_reward, "\n\n")
 
-    obs, info = test_env.reset(seed=42, options={})
+    obs, info = test_env.reset(seed=88, options={})
     start = time.time()
     for i in range((test_env.EPISODE_LEN_SEC+2)*test_env.CTRL_FREQ):
         action, _states = model.predict(obs,
@@ -113,18 +115,18 @@ def evaluate(filename):
         obs2 = obs.squeeze()
         act2 = action.squeeze()
         print("Obs:", obs, "\tAction", action, "\tReward:", reward, "\tTerminated:", terminated, "\tTruncated:", truncated)
-        if DEFAULT_OBS == ObservationType.KIN:
-            logger.log(drone=0,
-                timestamp=i/test_env.CTRL_FREQ,
-                state=np.hstack([obs2[0:3],
-                                    np.zeros(4),
-                                    obs2[3:15],
-                                    act2
-                                    ]),
-                control=np.zeros(12)
-                )
+        # if DEFAULT_OBS == ObservationType.KIN:
+        #     logger.log(drone=0,
+        #         timestamp=i/test_env.CTRL_FREQ,
+        #         state=np.hstack([obs2[0:3],
+        #                             np.zeros(4),
+        #                             obs2[3:15],
+        #                             act2
+        #                             ]),
+        #         control=np.zeros(12)
+        #         )
         test_env.render()
-        print(terminated)
+        # print(terminated)
         sync(i, start, test_env.CTRL_TIMESTEP)
         if terminated:
             obs = test_env.reset(seed=42, options={})
@@ -201,8 +203,8 @@ def test_velocity():
                     act=ActionType('vel'),
                     pyb_freq=240,
                     ctrl_freq=24,
-                    gui=True,
-                    record=False,
+                    gui=0,
+                    record=0,
                     debug=True
                     )
 
@@ -211,9 +213,9 @@ def test_velocity():
     print('[INFO] Observation space:', env.observation_space)
     print('=========================')
 
-    obs, info = env.reset(seed=88, options={})
+    obs, info = env.reset(seed=888, options={})
     # action = np.zeros((1, 4))
-    action = np.array([[.3]])
+    action = np.array([[0]])
     # action = np.array([[0.]])
 
     start = time.time()
@@ -221,9 +223,9 @@ def test_velocity():
         obs, reward, terminated, truncated, info = env.step(action)
         # env.render()
         sync(i, start, env.CTRL_TIMESTEP)
-        # if terminated or truncated:
-        if terminated:
-            obs = env.reset(seed=42, options={})
+        if terminated or truncated:
+        # if terminated:
+            obs = env.reset(options={})
 
     env.close()
 

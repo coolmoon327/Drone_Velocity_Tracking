@@ -10,7 +10,7 @@ import torch
 
 PENALTY = -100.
 MAX_DIS = 5.
-MAX_V = 2.
+MAX_V = 1.
 
 class TestAviary(BaseRLAviary):
     """测试用环境"""
@@ -80,15 +80,20 @@ class TestAviary(BaseRLAviary):
         self.last_kin = self._getDroneStateVector(0)
         self.last_obs = None
         self.lost_targets = 0
+        
+        super().reset(seed=seed, options=options)
 
-        ret = super().reset(seed=seed, options=options)
-        np.random.seed(seed)
+        if seed is not None:
+            np.random.seed(seed)
+            
         self._setTarget()
 
         state = self._getDroneStateVector(0)
         self.TARGET_rpy = state[7:10]
 
-        return ret
+        initial_obs = self._computeObs()
+        initial_info = self._computeInfo()
+        return initial_obs, initial_info
 
     def step(self,
              action
@@ -338,19 +343,29 @@ class TestAviary(BaseRLAviary):
         # ret = 500. * rew_d + 10 * rew_v
 
         w = self.obs[0][2]
-        if self.last_obs is not None:
-            last_w = self.last_obs[0][2]
-        else:
-            last_w = w
-        ret = 100 * (np.abs(0.27 - last_w) - np.abs(0.27 - w))
+        # if self.last_obs is not None:
+        #     last_w = self.last_obs[0][2]
+        # else:
+        #     last_w = w
+        # ret = 100 * (np.abs(0.27 - last_w) - np.abs(0.27 - w))
+
+        ret = 1. / (np.abs(0.27 - w)+ 0.01) - 10.
 
         if self.debug:
             # print("R_d, R_v, R:", rew_d, rew_v, ret)
             # print("Dis, D_v:", distance, dis_vel, "; last_Dis, last_D_v:", last_dis, last_vel)
-            print("Reward:", ret, ", Last w:", last_w, ", W:", w)
+            # print("Reward:", ret, ", Last w:", last_w, ", W:", w)
+            print("Reward:", ret, ", W:", w)
+
 
         if self._computeTerminated():
             ret += 100.
+        else:
+            if abs(self.action_buffer[-1][0][0]) < 1e-4 and self.lost_targets == 0:
+                # 惩罚摆烂不动
+                self.reward_penalty += PENALTY / 4.
+                if self.debug:
+                    print("No Moving.")
 
         # if self._computeTruncated():
         #     ret += -100.
@@ -363,9 +378,10 @@ class TestAviary(BaseRLAviary):
     def _computeTerminated(self):
         now_kin = self._getDroneStateVector(0)
         distance = self._computeDis(now_kin)
-        dis_vel = self._compareVel(now_kin)
+        # dis_vel = self._compareVel(now_kin)
 
-        if np.abs(self.TARGET_dis - distance) < .01 and dis_vel < .01:
+        # if np.abs(self.TARGET_dis - distance) < .01 and dis_vel < .01:
+        if np.abs(self.TARGET_dis - distance) < .01:
             return True
         else:
             return False

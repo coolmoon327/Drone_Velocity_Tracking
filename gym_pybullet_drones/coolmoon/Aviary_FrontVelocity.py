@@ -204,9 +204,9 @@ class Aviary_FrontVelocity(BaseRLAviary):
             last_obs = np.zeros((1, 10))
         self.obs = np.concatenate((last_obs[0, 5:9], self.action_buffer[-1][0][0], obs, velocity), axis=None).reshape(1, -1)
         self.obs = np.array(self.obs).astype('float32')
-        print("OBS:", self.obs)
+        # print("OBS:", self.obs)
 
-        return obs
+        return self.obs
     
     ### Action #############################################################################
 

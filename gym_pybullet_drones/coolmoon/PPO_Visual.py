@@ -37,11 +37,11 @@ from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
 DEFAULT_GUI = False
-DEFAULT_RECORD_VIDEO = True
+DEFAULT_RECORD_VIDEO = False
 DEFAULT_OUTPUT_FOLDER = 'results'
 
-DEFAULT_SIMULATION_FREQ_HZ = 60
-DEFAULT_CONTROL_FREQ_HZ = 5
+DEFAULT_SIMULATION_FREQ_HZ = 240
+DEFAULT_CONTROL_FREQ_HZ = 24
 
 DEFAULT_OBS = ObservationType('rgb') # 'kin' or 'rgb'
 DEFAULT_ACT = ActionType('vel') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
@@ -165,6 +165,40 @@ def run(eval=False):
     else:
         filename = os.path.join(DEFAULT_OUTPUT_FOLDER, "save-for-evaluate")
         evaluate(filename)
+
+def test_velocity():
+    env = Aviary_FrontVelocity(obs=ObservationType('rgb'),
+                    act=ActionType('vel'),
+                    pyb_freq=240,
+                    ctrl_freq=24,
+                    gui=0,
+                    record=0,
+                    debug=True
+                    )
+
+    print('=========================')
+    print('[INFO] Action space:', env.action_space)
+    print('[INFO] Observation space:', env.observation_space)
+    print('=========================')
+
+    obs, info = env.reset(seed=888, options={})
+    # action = np.zeros((1, 4))
+    action = np.array([[0.1]])
+    # action = np.array([[0.]])
+
+    start = time.time()
+    for i in range(1000):
+        obs, reward, terminated, truncated, info = env.step(action)
+        # env.render()
+        sync(i, start, env.CTRL_TIMESTEP)
+        if terminated or truncated:
+        # if terminated:
+            obs = env.reset(options={})
+
+    env.close()
+
+def test():
+    test_velocity()
 
 if __name__ == '__main__':
     run()

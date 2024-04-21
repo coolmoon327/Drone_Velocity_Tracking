@@ -216,7 +216,7 @@ class TestAviary(BaseRLAviary):
 
     def _actionSpace(self):
         if self.ACT_TYPE == ActionType.VEL:
-            # only velocity (0, 1), will be magnified by MAX_V
+            # only velocity increase (0, 1), will be magnified by MAX_V
             # 速度其实是向着某个方向的位置增量
             size = 1
             act_lower_bound = np.array([0*np.ones(size) for i in range(self.NUM_DRONES)])

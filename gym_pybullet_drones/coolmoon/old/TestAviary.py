@@ -1,18 +1,19 @@
 import numpy as np
 import pybullet as p
 from gymnasium import spaces
-from ultralytics import YOLO
-import torch
 
 from gym_pybullet_drones.envs.BaseRLAviary import BaseRLAviary
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType, ImageType
 
-PENALTY = -1000.
+from ultralytics import YOLO
+import torch
+
+PENALTY = -1000. # TODO: 似乎要调大到 1000 的量级, 或者直接用更小的 gamma
 MAX_DIS = 5.
 MAX_V = 1.
 
-class Aviary_FrontVelocity(BaseRLAviary):
-    """Env for front velocity control"""
+class TestAviary(BaseRLAviary):
+    """测试用环境"""
 
     ################################################################################
     
@@ -30,15 +31,17 @@ class Aviary_FrontVelocity(BaseRLAviary):
                  output_folder='results',
                  debug=False
                  ):
+        # if gui:
+        #     p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)         # no control panel
+
         if initial_xyzs is None:
             initial_xyzs = np.array([[0., 0., .8]])
         # Keep the TARGET_DIS from the TARGET_POS
         self.TARGET_rpy = np.zeros(3)
         self.TARGET_pos = np.zeros(3)
         self.TARGET_vel = np.zeros(4)
-        self.TARGET_dis = .4
+        self.TARGET_dis = 0.4
         self.EPISODE_LEN_SEC = 8
-        self.IMGs_per_step = 2
         self.IMG_RES = np.array([640, 480]) 
         self.IMG_FRAME_PER_SEC = ctrl_freq
         self.debug = debug
@@ -52,15 +55,10 @@ class Aviary_FrontVelocity(BaseRLAviary):
                          ctrl_freq=ctrl_freq,
                          gui=gui,
                          record=record,
-                         obs=ObservationType('kin'),    # no matter what kind of obs
+                         obs=obs,
                          act=act,
                          output_folder=output_folder
                          )
-
-        self.IMGs = []
-        self.IMGs_steps = []
-        self.IMGs_features = []
-        self.step_num = 0
 
         self.reward_penalty = 0.
         self.last_kin = None
@@ -74,28 +72,20 @@ class Aviary_FrontVelocity(BaseRLAviary):
     def reset(self,
             seed : int = None,
             options : dict = None):
-        
+
         if self.debug:
             print("============ RESET ============")
-    
+
         self.reward_penalty = 0.
         self.last_kin = self._getDroneStateVector(0)
         self.last_obs = None
         self.lost_targets = 0
-
-        self.IMGs.clear()
-        self.IMGs_steps.clear()
-        self.IMGs_features.clear()
-        self.lost_targets = 0
-        self.step_num = 0
-
-        self.reward_penalty = 0.
-
+        
         super().reset(seed=seed, options=options)
 
         if seed is not None:
             np.random.seed(seed)
-
+            
         self._setTarget()
 
         state = self._getDroneStateVector(0)
@@ -108,11 +98,6 @@ class Aviary_FrontVelocity(BaseRLAviary):
     def step(self,
              action
              ):
-        self.IMGs.clear()
-        self.IMGs_steps.clear()
-        self.IMGs_features.clear()
-        self.step_num += 1
-
         self.reward_penalty = 0.
         self.last_kin = self._getDroneStateVector(0)
         self.last_obs = None
@@ -121,52 +106,75 @@ class Aviary_FrontVelocity(BaseRLAviary):
         self._updateTarget()
 
         return ret
-    
+
     ### Env Obj #############################################################################
 
     def _setTarget(self):
-        self.TARGET_pos = np.array([np.random.randint(20,200)/100., 0., .5])
-        self.TARGET_vel = np.array([np.random.randint(-10,10)/100., 0., 0.])
+        # if self.GUI:
+        #     p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)   # no rendering when loading
 
+        self.TARGET_pos = np.array([np.random.randint(20,200)/100., 0., .5])
+        # self.TARGET_pos = np.array([.4, 0., .5])
+        self.TARGET_vel = np.array([0., 0., 0.])
+        
+        # if not hasattr(self, 'TARGET_ID'):
+        # 加载 OBJ 文件
         obj_visual_shape_id = p.createVisualShape(shapeType=p.GEOM_MESH,
                                         fileName="gym_pybullet_drones/coolmoon/models/SittingBaby/baby.obj",
                                         meshScale=[0.02, 0.02, 0.02])
         
+        # 创建物体
         self.TARGET_ID = p.createMultiBody(baseMass=1.0,
                                         baseCollisionShapeIndex=-1,
                                         baseVisualShapeIndex=obj_visual_shape_id,
                                         basePosition=self.TARGET_pos,
                                         baseOrientation=p.getQuaternionFromEuler([0, 0, -np.pi/2]))
-        
+            
         # No gravity or inertial
         p.changeDynamics(self.TARGET_ID, -1, mass=0.)
 
+        # self.TARGET_vel = self.TARGET_vel[np.array([1, 0, 0])]
+        self.TARGET_vel = np.array([0, 0, 0])
+
         p.resetBaseVelocity(self.TARGET_ID, linearVelocity=self.TARGET_vel)
+
+        # for jointIndex in range(p.getNumJoints(self.TARGET_ID)):
+        #     p.changeDynamics(self.TARGET_ID, jointIndex, mass=0.)
+        
+        # if self.GUI:
+        #     p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
+
         
     def _updateTarget(self):
         pass
+        # pos, orn = p.getBasePositionAndOrientation(self.TARGET_ID)
+        # time_slot_length = 1. / self.CTRL_FREQ
+        # new_pos = np.array(pos) + self.TARGET_vel * time_slot_length
+        # p.resetBasePositionAndOrientation(self.TARGET_ID, new_pos, orn)
 
     def _addObstacles(self):
         pass
+        # item_pos = [np.random.randint(0,200)/100., np.random.randint(-100,100)/100., 0]
+
+        # p.loadURDF("duck_vhacd.urdf",
+        #             item_pos,
+        #             p.getQuaternionFromEuler([0, 0, 0]),
+        #             physicsClientId=self.CLIENT
+        #             )
 
     ### State #############################################################################
 
     def _observationSpace(self):
         return spaces.Box(low=0,
                         high=1.,
-                        shape=(1, 10), dtype=np.uint8)   # last xywh, last action, now xywh, now velocity
+                        shape=(1, 5), dtype=np.uint8)   # xywh, velocity
     
     def _computeObs(self):
         self.last_obs = self.obs
-        
-        # TODO: 分情况讨论，某一个为空的情况
-        # 前一个 lost 了，则 lost_targets > 0，controller 回退到根据当前目标大小调整距离
-        # 看一下怎么针对性修改 reward
-        pass
 
         rgb, _, _ = self._getDroneImages(0, segmentation=False)
         rgb = rgb[:,:,:3]
-
+        
         if torch.cuda.is_available():
             results = self.model.predict(rgb, device=torch.device("cuda:2"), max_det=1, classes=[0], verbose=False)
         else:
@@ -197,22 +205,19 @@ class Aviary_FrontVelocity(BaseRLAviary):
         else:
             velocity = 0.
 
-        # TODO: 检查 obs 是不是对的
-        if self.last_obs is not None:
-            last_obs = self.obs
-        else:
-            last_obs = np.zeros((1, 10))
-        self.obs = np.concatenate((last_obs[0, 5:9], self.action_buffer[-1][0][0], obs, velocity), axis=None).reshape(1, -1)
-        self.obs = np.array(self.obs).astype('float32')
-        print("OBS:", self.obs)
 
-        return obs
+        obs = np.concatenate((obs, velocity), axis=None).reshape(1, -1)
+        # print(obs)
+        self.obs = np.array(obs).astype('float32')
+
+        return self.obs
     
     ### Action #############################################################################
 
     def _actionSpace(self):
         if self.ACT_TYPE == ActionType.VEL:
-            # only velocity increase (0, 1), will be magnified by MAX_V
+            # only velocity (0, 1), will be magnified by MAX_V
+            # 速度其实是向着某个方向的位置增量
             size = 1
             act_lower_bound = np.array([0*np.ones(size) for i in range(self.NUM_DRONES)])
             act_upper_bound = np.array([+1*np.ones(size) for i in range(self.NUM_DRONES)])
@@ -223,14 +228,20 @@ class Aviary_FrontVelocity(BaseRLAviary):
             return super()._actionSpace()
 
     def _preprocessAction(self, action):
-        if self.lost_targets == 0:
+        if self.obs is not None:
             if np.any(self.obs[0, 0:3] != 0):
                 vel = action[0][0] * MAX_V  # (0., 1.) be magnified by MAX_V
 
+                # neg = vel/abs(vel) if vel != 0 else 0.
+                # now_kin = self._getDroneStateVector(0)
+                # if (self.TARGET_pos[0] - self.TARGET_dis) < now_kin[0]:
                 if self.obs[0][2] > 0.27:
                     neg = -1
                 else:
                     neg = 1
+
+                # action = np.array([[1 * neg, 0, 0, abs(vel)]])
+                # rpm = self._vel_to_rpm(action) # TODO: 这里有大问题，飞的时候会漂移. 实际上，飞的时候并不能保证速度，RL 的状态还需要当前的一些 kinematics
                 
                 action = np.array([[vel * neg]])
                 rpm = self._x_increase_to_rpm(action)
@@ -306,17 +317,44 @@ class Aviary_FrontVelocity(BaseRLAviary):
         cur_vel = np.array(kin_state[10:13])
         return np.linalg.norm(cur_vel - self.TARGET_vel)
 
+        # cur_speed = np.linalg.norm(cur_vel)
+        # cur_vector = cur_vel / np.linalg.norm(cur_speed)
+
+        # target_speed = np.linalg.norm(self.TARGET_vel)
+        # target_vector = self.TARGET_vel / target_speed
+
+        # # cosine_similarity = np.dot(cur_vector, target_vector)
+        # # angle_diff = np.arccos(cosine_similarity)
+
+        # euclidean_distance = np.linalg.norm(cur_vector - target_vector)
+
+        # return np.abs(euclidean_distance) + np.abs(cur_speed - target_speed)
+
     def _computeReward(self):
-        if self.lost_targets:
-            # 丢失目标后无人机不会执行 PPO action, 不应该进行任何惩罚/奖励
-            return 0.
+        # now_kin = self._getDroneStateVector(0)
+        # distance = self._computeDis(now_kin)
+        # dis_vel = self._compareVel(now_kin)
+
+        # last_dis = self._computeDis(self.last_kin)
+        # last_vel = self._compareVel(self.last_kin)
+
+        # rew_d = (np.abs(self.TARGET_dis - last_dis) - np.abs(self.TARGET_dis - distance)) / MAX_DIS     # r = old - new
+        # rew_v = (last_vel - dis_vel) / MAX_V
+        # ret = 500. * rew_d + 10 * rew_v
 
         w = self.obs[0][2]
+        # if self.last_obs is not None:
+        #     last_w = self.last_obs[0][2]
+        # else:
+        #     last_w = w
+        # ret = 100 * (np.abs(0.27 - last_w) - np.abs(0.27 - w))
+
         ret = 1. / (np.abs(0.27 - w)+ 0.01) - 10.
 
-        # TODO: 看看是否加入速度相关的奖励
-
         if self.debug:
+            # print("R_d, R_v, R:", rew_d, rew_v, ret)
+            # print("Dis, D_v:", distance, dis_vel, "; last_Dis, last_D_v:", last_dis, last_vel)
+            # print("Reward:", ret, ", Last w:", last_w, ", W:", w)
             print("Reward:", ret, ", W:", w)
 
 
@@ -329,6 +367,8 @@ class Aviary_FrontVelocity(BaseRLAviary):
                 if self.debug:
                     print("No Moving.")
 
+        # if self._computeTruncated():
+        #     ret += -100.
         ret += self.reward_penalty
 
         return ret
@@ -339,8 +379,6 @@ class Aviary_FrontVelocity(BaseRLAviary):
         now_kin = self._getDroneStateVector(0)
         distance = self._computeDis(now_kin)
         # dis_vel = self._compareVel(now_kin)
-
-        # TODO: 先试试不限制速度，直接跟随
 
         # if np.abs(self.TARGET_dis - distance) < .01 and dis_vel < .01:
         if np.abs(self.TARGET_dis - distance) < .01:
@@ -374,7 +412,7 @@ class Aviary_FrontVelocity(BaseRLAviary):
             return True
         
         if self.lost_targets > 1:
-            # Target lost
+            # 目标脱离摄像头
             if self.debug:
                 print("Truncated: lose target.")
             self.reward_penalty += PENALTY
